@@ -43,14 +43,14 @@
 
 // ^^^^^^^^^^^^^^^^^^ THINGS YOU MUST CUSTOMIZE ^^^^^^^^^^^^^^^^^^^^^^
 
-// Generated UUID: 204C5239-F14F-440B-A743-4F78DF2BEE26
-#define kFactoryUUID CFUUIDGetConstantUUIDWithBytes(NULL, 0x20, 0x4C, 0x52, 0x39, 0xF1, 0x4F, 0x44, 0x0B, 0xA7, 0x43, 0x4F, 0x78, 0xDF, 0x2B, 0xEE, 0x26)
+// Generated UUID: 204C5239-F14F-440B-A743-4F78DF2BEE28
+#define kFactoryUUID CFUUIDGetConstantUUIDWithBytes(NULL, 0x20, 0x4C, 0x52, 0x39, 0xF1, 0x4F, 0x44, 0x0B, 0xA7, 0x43, 0x4F, 0x78, 0xDF, 0x2B, 0xEE, 0x28)
 
 #define kTheInterfaceToUse	2		// The third one
 
 #define kMyVendorID			0x0582	// Roland Corporation
-#define kMyProductID		0x0008
-#define kMyNumPorts			1		// One in-out pair.
+#define kMyProductID		0x000C  // SC-D70
+#define kMyNumPorts			3		// Part A and B and MIDI port
 
 // __________________________________________________________________________________________________
 
@@ -101,7 +101,7 @@ MIDIDeviceRef	GenericUSBMidiDriver::CreateDevice(	USBDevice *		inUSBDevice,
 	MIDIEntityRef ent;
 	//UInt16 devProduct = USBToHostWord(inUSBDevice->GetDeviceDescriptor()->idProduct);
 	
-	CFStringRef boxName = CFSTR("Roland PC-300 USB Keyboard");
+	CFStringRef boxName = CFSTR("Roland Sound Canvas");
 	MIDIDeviceCreate(Self(),
                      boxName,
                      CFSTR("Roland"),	// manufacturer name
