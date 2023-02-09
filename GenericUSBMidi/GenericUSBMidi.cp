@@ -41,13 +41,59 @@
 #include "GenericUSBMidi.h"
 
 // Generated UUID: E472548B-A500-473B-BCE8-8571F98CD88C
-#define kFactoryUUID CFUUIDGetConstantUUIDWithBytes(NULL, 0xE4, 0x72, 0x54, 0x8B, 0xA5, 0x00, 0x47, 0x3B, 0xBC, 0xE8, 0x85, 0x71, 0xF9, 0x8C, 0xD8, 0x8C)
+#define kFactoryUUID CFUUIDGetConstantUUIDWithBytes(nullptr, 0xE4, 0x72, 0x54, 0x8B, 0xA5, 0x00, 0x47, 0x3B, 0xBC, 0xE8, 0x85, 0x71, 0xF9, 0x8C, 0xD8, 0x8C)
 
-#define kTheInterfaceToUse	2		// The third one
+namespace {
 
-#define kMyVendorID			0x0582	// Roland Corporation
-#define kMyProductID		0x000C  // SC-D70
-#define kMyNumPorts			3		// Part A and B and MIDI port
+struct DeviceEntry {
+    uint16_t idVendor;
+    uint16_t idProduct;
+    uint16_t interface;
+    uint16_t nPorts;
+    const char *vendorName;
+    const char *productName;
+};
+
+const char *kVendorRoland = "Roland";
+const char *kVendorEdirol = "EDIROL";
+
+const DeviceEntry deviceTable[] = {
+    // vendor ID, product ID, interface number, number of ports/jacks, vendor name, product name
+    { 0x0582, 0x0008, 2, 1, kVendorRoland, "PC-300"},
+    { 0x0582, 0x000C, 2, 3, kVendorRoland, "SC-D70" },
+    { 0x0582, 0x0016, 2, 4, kVendorEdirol, "SD-90" },
+    { 0x0582, 0x0003, 2, 6, kVendorRoland, "SC-8850" },
+    // TODO: The SC-8820 does not have consecutive ports (Aux is port 4)
+    { 0x0582, 0x0007, 2, 2, kVendorRoland, "SC-8820" },
+    // TODO: The SD-20 only has 2 outputs
+    { 0x0582, 0x0027, 0, 3, kVendorEdirol, "SD-20" },
+    { 0x0582, 0x0029, 0, 4, kVendorEdirol, "SD-80" },
+    { 0x0582, 0x0012, 0, 1, kVendorRoland, "XV-5050" },
+    { 0x0582, 0x002D, 0, 1, kVendorRoland, "XV-2020" },
+    { 0x0582, 0x002F, 0, 3, kVendorRoland, "VariOS" },
+    { 0x0582, 0x0037, 0, 1, kVendorRoland, "Digital Piano" },
+    { 0x0582, 0x0000, 2, 3, kVendorRoland, "UA-100" },
+    { 0x0582, 0x0002, 2, 4, kVendorEdirol, "UM-4" },
+    { 0x0582, 0x0014, 0, 9, kVendorEdirol, "UM-880" },
+    { 0x0582, 0x001B, 2, 1, kVendorRoland, "MMP-2" },
+    { 0x0582, 0x001D, 0, 1, kVendorRoland, "V-SYNTH" },
+    { 0x0582, 0x0023, 0, 6, kVendorEdirol, "UM-550" },
+    { 0x00, 0x00 }
+};
+
+const DeviceEntry* FindDeviceEntry(const IOUSBDeviceDescriptor *devDesc)
+{
+    const auto idVendor = USBToHostWord(devDesc->idVendor);
+    const auto idProduct = USBToHostWord(devDesc->idProduct);
+    
+    for (const auto *devEntry = deviceTable; devEntry->idVendor; ++devEntry) {
+        if (idVendor == devEntry->idVendor && idProduct == devEntry->idProduct)
+            return devEntry;
+    }
+    return nullptr;
+}
+
+}
 
 // Implementation of the factory function for this type.
 extern "C" void *NewGenericUSBMidiDriver(CFAllocatorRef allocator, CFUUIDRef typeID);
@@ -59,8 +105,8 @@ extern "C" void *NewGenericUSBMidiDriver(CFAllocatorRef allocator, CFUUIDRef typ
 		GenericUSBMidiDriver *result = new GenericUSBMidiDriver;
 		return result->Self();
 	} else {
-		// If the requested type is incorrect, return NULL.
-		return NULL;
+		// If the requested type is incorrect, return nullptr.
+		return nullptr;
 	}
 }
 
@@ -77,51 +123,56 @@ GenericUSBMidiDriver::~GenericUSBMidiDriver()
 
 // __________________________________________________________________________________________________
 
-bool		GenericUSBMidiDriver::MatchDevice(	USBDevice *		inUSBDevice)
+bool		GenericUSBMidiDriver::MatchDevice(USBDevice *		inUSBDevice)
 {
-	const IOUSBDeviceDescriptor * devDesc = inUSBDevice->GetDeviceDescriptor();
-	if (USBToHostWord(devDesc->idVendor) == kMyVendorID) {
-		UInt16 devProduct = USBToHostWord(devDesc->idProduct);
-		if (devProduct == kMyProductID)
-			return true;
-	}
-	return false;
+    return FindDeviceEntry(inUSBDevice->GetDeviceDescriptor());
 }
 
-MIDIDeviceRef	GenericUSBMidiDriver::CreateDevice(	USBDevice *		inUSBDevice,
+MIDIDeviceRef	GenericUSBMidiDriver::CreateDevice(USBDevice *		inUSBDevice,
                                                  USBInterface *	inUSBInterface)
 {
-	MIDIDeviceRef dev;
-	MIDIEntityRef ent;
-	//UInt16 devProduct = USBToHostWord(inUSBDevice->GetDeviceDescriptor()->idProduct);
-	
-	CFStringRef boxName = CFSTR("Roland Sound Canvas");
-	MIDIDeviceCreate(Self(),
-                     boxName,
-                     CFSTR("Roland"),	// manufacturer name
-                     boxName,
-                     &dev);
-	
+    auto vendorName = CFSTR("Unknown");
+    auto productName = CFSTR("Unknown");
+    auto nPorts = 1;
+    
+    auto devEntry = FindDeviceEntry(inUSBDevice->GetDeviceDescriptor());
+    if (devEntry) {
+        vendorName = CFStringCreateWithCString(nullptr, devEntry->vendorName, kCFStringEncodingUTF8);
+        productName = CFStringCreateWithCString(nullptr, devEntry->productName, kCFStringEncodingUTF8);
+        nPorts = devEntry->nPorts;
+    }
+
+    MIDIDeviceRef dev;
+    MIDIEntityRef ent;
+
+    {
+        auto deviceName = CFStringCreateWithFormat(nullptr, nullptr, CFSTR("%@ %@"), vendorName, productName);
+        MIDIDeviceCreate(Self(), deviceName, vendorName, productName, &dev);
+        CFRelease(deviceName);
+    }
+
 	// make entity for each port, with 1 source, 1 destination
-	for (int port = 1; port <= kMyNumPorts; ++port) {
-		char portname[64];
-		if (kMyNumPorts > 1)
-			sprintf(portname, "Port %d", port);
-		else
-			CFStringGetCString(boxName, portname, sizeof(portname), kCFStringEncodingMacRoman);
-        
-		CFStringRef str = CFStringCreateWithCString(NULL, portname, 0);
-		MIDIDeviceAddEntity(dev, str, false, 1, 1, &ent);
+	for (int port = 1; port <= nPorts; ++port) {
+        CFStringRef str;
+        if (nPorts > 1) {
+            str = CFStringCreateWithFormat(nullptr, nullptr, CFSTR("Port %d"), port);
+        } else {
+            CFRetain(productName);
+            str = productName;
+        }
+        MIDIDeviceAddEntity(dev, str, false, 1, 1, &ent);
 		CFRelease(str);
 	}
+    CFRelease(productName);
+    CFRelease(vendorName);
     
 	return dev;
 }
 
 USBInterface *	GenericUSBMidiDriver::CreateInterface(USBMIDIDevice *device)
 {
-	USBInterface *intf = device->mUSBDevice->FindInterface(kTheInterfaceToUse, 0);
-	return intf;
+    auto devEntry = FindDeviceEntry(device->GetUSBDevice()->GetDeviceDescriptor());
+    return devEntry ? device->mUSBDevice->FindInterface(devEntry->interface, 0) : nullptr;
 }
 
 void		GenericUSBMidiDriver::StartInterface(USBMIDIDevice *usbmDev)
