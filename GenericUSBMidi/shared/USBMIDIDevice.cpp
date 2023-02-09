@@ -54,23 +54,16 @@
 //
 USBMIDIDevice::USBMIDIDevice(		USBMIDIDriverBase *	driver,
 									USBDevice *			usbDevice,
-									USBInterface *		usbInterface,
 									MIDIDeviceRef		midiDevice) :
 	MIDIDriverDevice(midiDevice),
 	mDriver(driver),
 	mUSBDevice(usbDevice),
-	mUSBInterface(usbInterface),
-	mUSBIntfIntf(NULL),
-	mShuttingDown(false),
-	mWriteQueueMutex("USBMIDIDevice.mWriteQueueMutex")
-
+	mShuttingDown(false)
 #if COALESCE_WRITES
-	, mWriteSignalTimer(NULL),
+	, mWriteSignalTimer(nullptr),
 	mWriteSignalled(0)
 #endif
 {
-	if (usbInterface)
-		usbInterface->DisownDevice();	// we're taking over ownership of it here
 }
 
 // _________________________________________________________________________________________
@@ -78,72 +71,71 @@ USBMIDIDevice::USBMIDIDevice(		USBMIDIDriverBase *	driver,
 //
 bool	USBMIDIDevice::Initialize()
 {
-	mUSBInterface = mDriver->CreateInterface(this);
-	if (mUSBInterface == NULL || !mUSBInterface->Open())
-		return false;
-	mUSBIntfIntf = mUSBInterface->GetPluginInterface();
-	if (mUSBIntfIntf == NULL)
-		return false;
-
-	FindPipes();
-	
-	int i;
-	for (i = 0; i < kNumReadBufs; ++i)
-		mReadBuf[i].Allocate(this, mInPipe.mMaxPacketSize);
-	for (i = 0; i < kNumWriteBufs; ++i)
-		mWriteBuf[i].Allocate(this, mOutPipe.mMaxPacketSize);
-	mCurWriteBuf = 0;
-	
-	// don't go any further if we don't have a valid pipe
-	__Require(HaveOutPipe() || HaveInPipe(), errexit);
-
+	auto usbInterfaces = mDriver->CreateInterfaces(this);
+    
+    if (usbInterfaces.empty())
+        return false;
+    
+    for (auto intf : usbInterfaces) {
+        if (!intf->Open())
+            return false;
+        auto intfIntf = intf->GetPluginInterface();
+        if (intfIntf == nullptr)
+            return false;
+        SubInterface si(intf, intfIntf);
+        
+        si.FindPipes();
+        si.AllocateBuffers(this);
+        
+        __Require(si.HaveOutPipe() || si.HaveInPipe(), errexit);
 #if VERBOSE
-	printf("starting MIDI, mOutPipe=0x%lX, mInPipe=0x%lX\n", (long)mOutPipe.mPipeIndex, (long)mInPipe.mPipeIndex);
+        printf("starting MIDI, mOutPipe=0x%lX, mInPipe=0x%lX\n", (long)si.mOutPipe.mPipeIndex, (long)si.mInPipe.mPipeIndex);
 #endif
-	
-	SetUpEndpoints(true);
-	
-	{
-		CFRunLoopRef ioRunLoop = MIDIGetDriverIORunLoop();
-		CFRunLoopSourceRef source;
-		
-		if (ioRunLoop != NULL) {
-			source = (*mUSBIntfIntf)->GetInterfaceAsyncEventSource(mUSBIntfIntf);
-			if (source == NULL) {
-				__Require_noErr((*mUSBIntfIntf)->CreateInterfaceAsyncEventSource(mUSBIntfIntf, &source), errexit);
-				__Require(source != NULL, errexit);
-			}
-			if (!CFRunLoopContainsSource(ioRunLoop, source, kCFRunLoopDefaultMode))
-				CFRunLoopAddSource(ioRunLoop, source, kCFRunLoopDefaultMode);
-		}
-		
+        
+        {
+            CFRunLoopRef ioRunLoop = MIDIGetDriverIORunLoop();
+            CFRunLoopSourceRef source;
+            
+            if (ioRunLoop) {
+                source = (*intfIntf)->GetInterfaceAsyncEventSource(intfIntf);
+                if (!source) {
+                    __Require_noErr((*intfIntf)->CreateInterfaceAsyncEventSource(intfIntf, &source), errexit);
+                    __Require(source, errexit);
+                }
+                if (!CFRunLoopContainsSource(ioRunLoop, source, kCFRunLoopDefaultMode))
+                    CFRunLoopAddSource(ioRunLoop, source, kCFRunLoopDefaultMode);
+            }
+            
 #if COALESCE_WRITES
-		mWriteSignalTimer = MIDITimerTaskCreate(WriteSignalCallback, this);
+            mWriteSignalTimer = MIDITimerTaskCreate(WriteSignalCallback, this);
 #endif
 #if 0
-		{
-			CFRunLoopTimerContext context;
-			context.version = 0;
-			context.info = this;
-			context.retain = NULL;
-			context.release = NULL;
-			context.copyDescription = NULL;
-	
-			mWriteSignalTimer = CFRunLoopTimerCreate(NULL, 0 /* fire date */, 100000000000. /* interval */, 0 /* flags */, 0 /* order */, WriteSignalCallback, &context);
-			CFRunLoopAddTimer(ioRunLoop, mWriteSignalTimer, kCFRunLoopDefaultMode);
-		}
+            {
+                CFRunLoopTimerContext context;
+                context.version = 0;
+                context.info = this;
+                context.retain = nullptr;
+                context.release = nullptr;
+                context.copyDescription = nullptr;
+                
+                mWriteSignalTimer = CFRunLoopTimerCreate(nullptr, 0 /* fire date */, 100000000000. /* interval */, 0 /* flags */, 0 /* order */, WriteSignalCallback, &context);
+                CFRunLoopAddTimer(ioRunLoop, mWriteSignalTimer, kCFRunLoopDefaultMode);
+            }
 #endif
-	}
+        }
+        
+        if (si.HaveInPipe()) {
+            for (int i = 0; i < kNumReadBufs; ++i)
+                DoRead(si.mReadBuf[i]);
+        }
 
-	if (HaveInPipe()) {
-		for (i = 0; i < kNumReadBufs; ++i)
-			DoRead(mReadBuf[i]);
-	}
-
-	mDriver->StartInterface(this);
-	// Start MIDI.  Do driver specific initialization.
-	// Here, the driver can do things like send MIDI to the interface to
-	// configure it.
+        // Start MIDI.  Do driver specific initialization.
+        // Here, the driver can do things like send MIDI to the interface to
+        // configure it.
+        mDriver->StartInterface(this, intf);
+        mSubInterfaces.push_back(std::move(si));
+    }
+    SetUpEndpoints(true);
 	
 	return true;
 errexit:
@@ -157,51 +149,57 @@ USBMIDIDevice::~USBMIDIDevice()
 {
 	SetUpEndpoints(false);
 
-	if (HaveOutPipe() || HaveInPipe())
-		mDriver->StopInterface(this);
+    for (auto si : mSubInterfaces) {
+        if (si.HaveOutPipe() || si.HaveInPipe())
+            mDriver->StopInterface(this, si.mUSBInterface);
+    }
 
 	mShuttingDown = true;
 
-	if (HaveOutPipe())
-		__Verify_noErr((*mUSBIntfIntf)->AbortPipe(mUSBIntfIntf, mOutPipe.mPipeIndex));
-
-	if (HaveInPipe())
-		__Verify_noErr((*mUSBIntfIntf)->AbortPipe(mUSBIntfIntf, mInPipe.mPipeIndex)); 
-
-	const int sleepMicros = 10000;	// 10 ms
-	const int timeoutMicros = 2*1000*1000;	// 2 seconds
-	int maxIterations = timeoutMicros / sleepMicros;
-	while (--maxIterations > 0) {
-		int i;
-		bool anyPending = false;
-		for (i = 0; i < kNumReadBufs; ++i)
-			if (mReadBuf[i].IOPending()) {
-				anyPending = true;
+    for (auto si : mSubInterfaces) {
+        if (si.HaveOutPipe())
+            __Verify_noErr((*(si.mUSBIntfIntf))->AbortPipe(si.mUSBIntfIntf, si.mOutPipe.mPipeIndex));
+        
+        if (si.HaveInPipe())
+            __Verify_noErr((*(si.mUSBIntfIntf))->AbortPipe(si.mUSBIntfIntf, si.mInPipe.mPipeIndex));
+        
+        
+        const int sleepMicros = 10000;	// 10 ms
+        const int timeoutMicros = 2*1000*1000;	// 2 seconds
+        int maxIterations = timeoutMicros / sleepMicros;
+        while (--maxIterations > 0) {
+            int i;
+            bool anyPending = false;
+            for (i = 0; i < kNumReadBufs; ++i)
+                if (si.mReadBuf[i].IOPending()) {
+                    anyPending = true;
 #if VERBOSE
-				printf("mReadBuf[%d] IO pending\n", i);
+                    printf("mReadBuf[%d] IO pending\n", i);
 #endif
-				break;
-			}
-		for (i = 0; i < kNumWriteBufs; ++i)
-			if (mWriteBuf[i].IOPending()) {
-				anyPending = true;
+                    break;
+                }
+            for (i = 0; i < kNumWriteBufs; ++i)
+                if (si.mWriteBuf[i].IOPending()) {
+                    anyPending = true;
 #if VERBOSE
-				printf("mWriteBuf[%d] IO pending\n", i);
+                    printf("mWriteBuf[%d] IO pending\n", i);
 #endif
-				break;
-			}
-		if (!anyPending)
-			break;
-		usleep(sleepMicros);
-	}
-	CFRunLoopRef ioRunLoop = MIDIGetDriverIORunLoop();
-	CFRunLoopSourceRef source;
-	
-	if (mUSBIntfIntf != NULL && ioRunLoop != NULL) {
-		source = (*mUSBIntfIntf)->GetInterfaceAsyncEventSource(mUSBIntfIntf);
-		if (source != NULL && CFRunLoopContainsSource(ioRunLoop, source, kCFRunLoopDefaultMode))
-			CFRunLoopRemoveSource(ioRunLoop, source, kCFRunLoopDefaultMode);
-	}
+                    break;
+                }
+            if (!anyPending)
+                break;
+            usleep(sleepMicros);
+        }
+        CFRunLoopRef ioRunLoop = MIDIGetDriverIORunLoop();
+        CFRunLoopSourceRef source;
+        
+        if (si.mUSBIntfIntf != nullptr && ioRunLoop != nullptr) {
+            source = (*(si.mUSBIntfIntf))->GetInterfaceAsyncEventSource(si.mUSBIntfIntf);
+            if (source != nullptr && CFRunLoopContainsSource(ioRunLoop, source, kCFRunLoopDefaultMode))
+                CFRunLoopRemoveSource(ioRunLoop, source, kCFRunLoopDefaultMode);
+        }
+        delete si.mUSBInterface;
+    }
 	
 #if COALESCE_WRITES
 	if (mWriteSignalTimer != NULL)
@@ -215,7 +213,6 @@ USBMIDIDevice::~USBMIDIDevice()
 	}
 #endif
 	
-	delete mUSBInterface;
 	delete mUSBDevice;
 	
 #if VERBOSE
@@ -228,7 +225,7 @@ USBMIDIDevice::~USBMIDIDevice()
 //
 //	Overridable method.  Responsible for setting the mInPipe and mOutPipe members.
 //  Default implementation here just finds the last pipe of each direction.
-void	USBMIDIDevice::FindPipes()
+void	USBMIDIDevice::SubInterface::FindPipes()
 {
 	UInt8	   		numEndpoints = 0;	//, pipeNum, direction, transferType, interval;
 	UInt16			pipeIndex;			//, maxPacketSize; 		
@@ -247,6 +244,15 @@ void	USBMIDIDevice::FindPipes()
 nextPipe: ;
 	}
 errexit: ;
+}
+
+void USBMIDIDevice::SubInterface::AllocateBuffers()
+{
+    for (int i = 0; i < kNumReadBufs; ++i)
+        mReadBuf[i].Allocate(this, mInPipe.mMaxPacketSize);
+    for (int i = 0; i < kNumWriteBufs; ++i)
+        mWriteBuf[i].Allocate(this, mOutPipe.mMaxPacketSize);
+    mCurWriteBuf = 0;
 }
 
 // _________________________________________________________________________________________
@@ -270,13 +276,48 @@ static void Dump(const char *label, Byte *buffer, ByteCount len)
 // _________________________________________________________________________________________
 //	USBMIDIDevice::HandleInput
 //
-void	USBMIDIDevice::HandleInput(IOBuffer &readBuf, ByteCount bytesReceived)
+void	USBMIDIDevice::SubInterface::HandleInput(IOBuffer &readBuf, ByteCount bytesReceived)
 {
 	UInt64 now = CAHostTimeBase::GetCurrentTime();
 #if DUMP_INPUT
 	Dump("IN", readBuf, bytesReceived);
 #endif
-	mDriver->HandleInput(this, now, readBuf, bytesReceived);
+	mDevice->mDriver->HandleInput(mDevice, now, readBuf, bytesReceived);
+}
+
+
+void USBMIDIDevice::SubInterface::Send(const MIDIPacketList *pktlist, int portNumber)
+{
+    //    Profiler prof("USBMIDIDevice::Send", 200);
+    if (HaveOutPipe()) {
+        CAMutex::Locker lock(mWriteQueueMutex);
+        const MIDIPacket *srcpkt = pktlist->packet;
+        for (int i = pktlist->numPackets; --i >= 0; ) {
+            WriteQueueElem wqe;
+            
+            wqe.packet.Create(srcpkt);
+            wqe.portNum = portNumber;
+            wqe.bytesSent = 0;
+            mWriteQueue.push_back(wqe);
+            
+#if TRACE_IO
+            Byte *p = wqe.packet.Data();
+            syscall(180, 0xBC200000, srcpkt->length, *(UInt32 *)p, *(UInt32 *)(p + 4), *(UInt32 *)(p + 8));
+#endif
+            
+            srcpkt = MIDIPacketNext(srcpkt);
+        }
+#if COALESCE_WRITES
+        if (!mWriteBuf[mCurWriteBuf].IOPending() && !mWriteSignalled) {
+            mWriteSignalled = 1;
+            //CFRunLoopTimerSetNextFireDate(mWriteSignalTimer, CFAbsoluteTimeGetCurrent());
+            MIDITimerTaskSetNextWakeTime(mWriteSignalTimer, CAHostTimeBase::GetCurrentTime() + CAHostTimeBase::ConvertFromNanos(300000ULL));    // 300 us from now
+        }
+#else
+        if (!mWriteBuf[mCurWriteBuf].IOPending())
+            DoWrite();
+#endif
+    }
 }
 
 // _________________________________________________________________________________________
@@ -284,36 +325,7 @@ void	USBMIDIDevice::HandleInput(IOBuffer &readBuf, ByteCount bytesReceived)
 //
 void	USBMIDIDevice::Send(const MIDIPacketList *pktlist, int portNumber)
 {
-//	Profiler prof("USBMIDIDevice::Send", 200);
-	if (HaveOutPipe()) {
-		CAMutex::Locker lock(mWriteQueueMutex);
-		const MIDIPacket *srcpkt = pktlist->packet;
-		for (int i = pktlist->numPackets; --i >= 0; ) {
-			WriteQueueElem wqe;
-			
-			wqe.packet.Create(srcpkt);
-			wqe.portNum = portNumber;
-			wqe.bytesSent = 0;
-			mWriteQueue.push_back(wqe);
-			
-#if TRACE_IO
-			Byte *p = wqe.packet.Data();
-			syscall(180, 0xBC200000, srcpkt->length, *(UInt32 *)p, *(UInt32 *)(p + 4), *(UInt32 *)(p + 8));
-#endif
-
-			srcpkt = MIDIPacketNext(srcpkt);
-		}
-#if COALESCE_WRITES
-		if (!mWriteBuf[mCurWriteBuf].IOPending() && !mWriteSignalled) {
-			mWriteSignalled = 1;
-			//CFRunLoopTimerSetNextFireDate(mWriteSignalTimer, CFAbsoluteTimeGetCurrent());
-			MIDITimerTaskSetNextWakeTime(mWriteSignalTimer, CAHostTimeBase::GetCurrentTime() + CAHostTimeBase::ConvertFromNanos(300000ULL));	// 300 us from now
-		}
-#else
-		if (!mWriteBuf[mCurWriteBuf].IOPending())
-			DoWrite();
-#endif
-	}
+    // FIXME: Implement
 }
 
 // _________________________________________________________________________________________
@@ -332,15 +344,15 @@ void	USBMIDIDevice::DoRead(IOBuffer &readBuf)
 void	USBMIDIDevice::ReadCallback(void *refcon, IOReturn asyncReadResult, void *arg0)
 {
 //	Profiler prof("USBMIDIDevice::ReadCallback", 200);
-	IOBuffer &buffer = *(IOBuffer *)refcon;
+	IOBuffer &buffer = *static_cast<IOBuffer*>(refcon);
 	buffer.SetIOPending(false);
 
 	if (asyncReadResult == kIOReturnAborted)
 		goto done;
 	__Require_noErr(asyncReadResult, done);
 	{
-		USBMIDIDevice *self = (USBMIDIDevice *)buffer.Owner();
-		if (!self->mShuttingDown) {
+        auto si = static_cast<USBMIDIDevice::SubInterface*>(buffer.Owner());
+		if (!si->mDevice->mShuttingDown) {
 			ByteCount bytesReceived = (ByteCount)arg0;
 			if (bytesReceived == 0)
 				__Debug_String("0 bytes received");
@@ -359,7 +371,7 @@ done:
 //	USBMIDIDevice::DoWrite
 //
 //	Must only be called with mWriteQueueMutex acquired and mWritePending false.
-void	USBMIDIDevice::DoWrite()
+void	USBMIDIDevice::SubInterface::DoWrite()
 {
 	if (!mWriteQueue.empty()) {
 		IOBuffer &writeBuffer = mWriteBuf[mCurWriteBuf];

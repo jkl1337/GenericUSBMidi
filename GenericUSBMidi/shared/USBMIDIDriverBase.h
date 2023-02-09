@@ -77,12 +77,12 @@ public:
 													USBDevice *		inUSBDevice,
 													USBInterface *	inUSBInterface) { }
 
-	virtual USBInterface *	CreateInterface(		USBMIDIDevice *	inDevice) = 0;
+	virtual std::vector<USBInterface*>	CreateInterfaces(		USBMIDIDevice *	inDevice) = 0;
 	
-	virtual void			StartInterface(			USBMIDIDevice *	usbmDev) = 0;
+	virtual void			StartInterface(			USBMIDIDevice *	usbmDev, USBInterface *inUSBInterface) = 0;
 								// pipes are opened, do any extra initialization (send config msgs etc)
 							
-	virtual void			StopInterface(			USBMIDIDevice *	usbmDev) = 0;
+	virtual void			StopInterface(			USBMIDIDevice *	usbmDev, USBInterface *inUSBInterface) = 0;
 								// pipes are about to be closed, do any preliminary cleanup
 							
 	virtual void			HandleInput(			USBMIDIDevice *	usbmDev,

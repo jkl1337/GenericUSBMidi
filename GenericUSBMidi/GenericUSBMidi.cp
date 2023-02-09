@@ -56,6 +56,7 @@ struct DeviceEntry {
 
 const char *kVendorRoland = "Roland";
 const char *kVendorEdirol = "EDIROL";
+const char *kVendorNovation = "Novation";
 
 const DeviceEntry deviceTable[] = {
     // vendor ID, product ID, interface number, number of ports/jacks, vendor name, product name
@@ -78,6 +79,9 @@ const DeviceEntry deviceTable[] = {
     { 0x0582, 0x001B, 2, 1, kVendorRoland, "MMP-2" },
     { 0x0582, 0x001D, 0, 1, kVendorRoland, "V-SYNTH" },
     { 0x0582, 0x0023, 0, 6, kVendorEdirol, "UM-550" },
+    { 0x1235, 0x0019, 2, 1, kVendorNovation, "Impulse 25" },
+    { 0x1235, 0x001A, 2, 1, kVendorNovation, "Impulse 49" },
+    { 0x1235, 0x001B, 2, 1, kVendorNovation, "Impulse 61" },
     { 0x00, 0x00 }
 };
 
@@ -169,17 +173,25 @@ MIDIDeviceRef	GenericUSBMidiDriver::CreateDevice(USBDevice *		inUSBDevice,
 	return dev;
 }
 
-USBInterface *	GenericUSBMidiDriver::CreateInterface(USBMIDIDevice *device)
+std::vector<USBInterface*>	GenericUSBMidiDriver::CreateInterfaces(USBMIDIDevice *device)
 {
     auto devEntry = FindDeviceEntry(device->GetUSBDevice()->GetDeviceDescriptor());
-    return devEntry ? device->mUSBDevice->FindInterface(devEntry->interface, 0) : nullptr;
+    if (!devEntry)
+        return {};
+
+    if (devEntry->idVendor == 0x1235) {
+        return {device->mUSBDevice->FindInterface(2, 0),
+                device->mUSBDevice->FindInterface(3, 0)};
+    } else {
+        return {device->mUSBDevice->FindInterface(devEntry->interface, 0)};
+    }
 }
 
-void		GenericUSBMidiDriver::StartInterface(USBMIDIDevice *usbmDev)
+void		GenericUSBMidiDriver::StartInterface(USBMIDIDevice *usbmDev, USBInterface *inUSBInterface)
 {
 }
 
-void		GenericUSBMidiDriver::StopInterface(USBMIDIDevice *usbmDev)
+void		GenericUSBMidiDriver::StopInterface(USBMIDIDevice *usbmDev, USBInterface *inUSBInterface)
 {
 }
 

@@ -54,15 +54,15 @@ public:
 	virtual MIDIDeviceRef	CreateDevice(		USBDevice *		inUSBDevice,
                                          USBInterface *	inUSBInterface);
     
-	virtual USBInterface *	CreateInterface(	USBMIDIDevice *	usbmDev);
+	virtual std::vector<USBInterface*>	CreateInterfaces(	USBMIDIDevice *	usbmDev);
     
-	virtual void		StartInterface(			USBMIDIDevice *	usbmDev);
+	virtual void		StartInterface(USBMIDIDevice *	usbmDev, USBInterface *inUSBInterface);
     // pipes are opened, do any extra initialization (send config msgs etc)
     
-	virtual void		StopInterface(			USBMIDIDevice *	usbmDev);
+	virtual void		StopInterface(USBMIDIDevice *	usbmDev, USBInterface *inUSBInterface);
     // pipes are about to be closed, do any preliminary cleanup
     
-	virtual void		HandleInput(			USBMIDIDevice *	usbmDev,
+	virtual void		HandleInput(USBMIDIDevice *	usbmDev,
                                     MIDITimeStamp	when,
                                     Byte *			readBuf,
                                     ByteCount 		readBufSize);

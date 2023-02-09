@@ -1,4 +1,4 @@
-/*	Copyright © 2007 Apple Inc. All Rights Reserved.
+/*	Copyright ï¿½ 2007 Apple Inc. All Rights Reserved.
 	
 	Disclaimer: IMPORTANT:  This Apple software is supplied to you by 
 			Apple Inc. ("Apple") in consideration of your agreement to the
@@ -61,7 +61,6 @@ class USBMIDIDevice : public MIDIDriverDevice {
 public:
 					USBMIDIDevice(	USBMIDIDriverBase *	driver,
 									USBDevice *			usbDevice,
-									USBInterface *		usbInterface,
 									MIDIDeviceRef		midiDevice);
 	
 	virtual			~USBMIDIDevice();
@@ -70,41 +69,56 @@ public:
 	// are correctly dispatched to subclasses
 	virtual bool	Initialize();
 						// return true for success
-	
-	virtual void	FindPipes();
 
 	virtual void	DoRead(IOBuffer &readBuf);
 	static void		ReadCallback(void *refcon, IOReturn result, void *arg0);
-	virtual void	DoWrite();
 	static void		WriteCallback(void *refcon, IOReturn result, void *arg0);
 #if COALESCE_WRITES
 	//static void	WriteSignalCallback(CFRunLoopTimerRef timer, void *info);
 	static void		WriteSignalCallback(void *info);
 #endif
 
-	virtual void	HandleInput(IOBuffer &readBuf, ByteCount bytesReceived);
 	virtual void	Send(const MIDIPacketList *pktlist, int portNumber);
-	
-	bool			HaveInPipe() const { return mInPipe.mPipeIndex != UInt8(kUSBNoPipeIdx); }
-	bool			HaveOutPipe() const { return mOutPipe.mPipeIndex != UInt8(kUSBNoPipeIdx); }
-	bool			WritePending() const { return mWriteBuf[0].IOPending(); }
-	
+		
 	USBDevice *		GetUSBDevice() { return mUSBDevice; }
 	
 	// Leave data members public, so they may be accessed directly by driver methods.
 	USBMIDIDriverBase *			mDriver;
 	USBDevice *					mUSBDevice;
-	USBInterface *				mUSBInterface;
-	IOUSBInterfaceInterface **	mUSBIntfIntf;
-	USBPipe						mInPipe, mOutPipe;		// may be kUSBNoPipeIdx
+
+    enum { kNumReadBufs = 2, kNumWriteBufs = 1 };
+
+    struct SubInterface {
+        USBMIDIDevice *mDevice;
+        int mPortOffset;
+        USBInterface *mUSBInterface;
+        IOUSBInterfaceInterface **mUSBIntfIntf;
+        USBPipe mInPipe, mOutPipe; // may be kUSBNoPipeIdx
+        IOBuffer                    mReadBuf[kNumReadBufs], mWriteBuf[kNumWriteBufs];
+        int                            mCurWriteBuf;
+        CAMutex                        mWriteQueueMutex;
+        WriteQueue                    mWriteQueue;
+
+        SubInterface(USBMIDIDevice *device, int portOffset, USBInterface *usbInterface, IOUSBInterfaceInterface **usbIntfIntf)
+        : mDevice(device), mPortOffset(portOffset),
+        mUSBInterface(usbInterface), mUSBIntfIntf(usbIntfIntf),
+        mWriteQueueMutex("USBMIDIDevice.mWriteQueueMutex") {}
+
+        bool HaveInPipe() const { return mInPipe.mPipeIndex != UInt8(kUSBNoPipeIdx); }
+        bool HaveOutPipe() const { return mOutPipe.mPipeIndex != UInt8(kUSBNoPipeIdx); }
+        bool WritePending() const { return mWriteBuf[0].IOPending(); }
+        void FindPipes();
+        void AllocateBuffers();
+        
+        void Send(const MIDIPacketList *pktlist, int portNumber);
+        void DoWrite();
+        void HandleInput(IOBuffer &readBuf, ByteCount bytesReceived);
+    };
+    
+    std::vector<SubInterface>   mSubInterfaces;
 	bool						mShuttingDown;
 	
-	enum { kNumReadBufs = 2, kNumWriteBufs = 1 };
 	
-	IOBuffer					mReadBuf[kNumReadBufs], mWriteBuf[kNumWriteBufs];
-	int							mCurWriteBuf;
-	CAMutex						mWriteQueueMutex;
-	WriteQueue					mWriteQueue;
 #if COALESCE_WRITES
 	MIDITimerTaskRef			mWriteSignalTimer;
 	//CFRunLoopTimerRef			mWriteSignalTimer;

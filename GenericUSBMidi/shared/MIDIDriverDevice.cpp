@@ -1,4 +1,4 @@
-/*	Copyright © 2007 Apple Inc. All Rights Reserved.
+/*	Copyright ï¿½ 2007 Apple Inc. All Rights Reserved.
 	
 	Disclaimer: IMPORTANT:  This Apple software is supplied to you by 
 			Apple Inc. ("Apple") in consideration of your agreement to the
@@ -73,12 +73,12 @@ void	MIDIDriverDevice::SetUpEndpoints(bool enable)
 		if (MIDIEntityGetNumberOfDestinations(ent) > 0) {
 			MIDIEndpointRef dest = MIDIEntityGetDestination(ent, 0);
 			if (enable)
-				MIDIEndpointSetRefCons(dest, this, (void *)ient);
+				MIDIEndpointSetRefCons(dest, this, reinterpret_cast<void*>(ient));
 			else
-				MIDIEndpointSetRefCons(dest, NULL, NULL);
+				MIDIEndpointSetRefCons(dest, nullptr, nullptr);
 		}
 		if (enable) {
-			MIDIEndpointRef source = MIDIEntityGetNumberOfSources(ent) > 0 ? MIDIEntityGetSource(ent, 0) : NULL;
+			MIDIEndpointRef source = MIDIEntityGetNumberOfSources(ent) > 0 ? MIDIEntityGetSource(ent, 0) : 0;
 			mSources.push_back(source);
 		}
 	}
