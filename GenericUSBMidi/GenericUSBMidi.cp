@@ -40,20 +40,14 @@
  */
 #include "GenericUSBMidi.h"
 
-
-// ^^^^^^^^^^^^^^^^^^ THINGS YOU MUST CUSTOMIZE ^^^^^^^^^^^^^^^^^^^^^^
-
-// Generated UUID: 204C5239-F14F-440B-A743-4F78DF2BEE28
-#define kFactoryUUID CFUUIDGetConstantUUIDWithBytes(NULL, 0x20, 0x4C, 0x52, 0x39, 0xF1, 0x4F, 0x44, 0x0B, 0xA7, 0x43, 0x4F, 0x78, 0xDF, 0x2B, 0xEE, 0x28)
+// Generated UUID: E472548B-A500-473B-BCE8-8571F98CD88C
+#define kFactoryUUID CFUUIDGetConstantUUIDWithBytes(NULL, 0xE4, 0x72, 0x54, 0x8B, 0xA5, 0x00, 0x47, 0x3B, 0xBC, 0xE8, 0x85, 0x71, 0xF9, 0x8C, 0xD8, 0x8C)
 
 #define kTheInterfaceToUse	2		// The third one
 
 #define kMyVendorID			0x0582	// Roland Corporation
 #define kMyProductID		0x000C  // SC-D70
 #define kMyNumPorts			3		// Part A and B and MIDI port
-
-// __________________________________________________________________________________________________
-
 
 // Implementation of the factory function for this type.
 extern "C" void *NewGenericUSBMidiDriver(CFAllocatorRef allocator, CFUUIDRef typeID);
