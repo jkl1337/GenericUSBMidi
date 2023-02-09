@@ -88,15 +88,13 @@ USBMIDIDevice *	USBMIDIDriverBase::CreateUSBMIDIDevice(	USBDevice *		inUSBDevice
 //
 OSStatus	USBMIDIDriverBase::Send(const MIDIPacketList *pktlist, void *endptRef1, void *endptRef2)
 {
-	USBMIDIDevice *usbmDev = (USBMIDIDevice *)endptRef1;
-	if (usbmDev == NULL) return kMIDIUnknownEndpoint;
+	USBMIDIDevice *usbmDev = static_cast<USBMIDIDevice *>(endptRef1);
+	if (usbmDev == nullptr) return kMIDIUnknownEndpoint;
 
-	usbmDev->Send(pktlist, (int)(*((int*)&endptRef2)));	// endptRef2 = port number
+	usbmDev->Send(pktlist, static_cast<int>(reinterpret_cast<intptr_t>(endptRef2)));	// endptRef2 = port number
 
 	return noErr;
 }
-
-
 
 // _________________________________________________________________________________________
 // USBMIDIDriverBase::USBMIDIHandleInput
