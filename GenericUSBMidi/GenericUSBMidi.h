@@ -69,9 +69,9 @@ public:
     // a USB message arrived, parse it into a MIDIPacketList and
     // call MIDIReceived
     
-	virtual ByteCount	PrepareOutput(			USBMIDIDevice *	usbmDev,
-                                      WriteQueue &	writeQueue,
-                                      Byte *			destBuf);
+	virtual UInt32	PrepareOutput(	USBMIDIDevice *	usbmDev,
+                                    WriteQueue &	writeQueue,
+                                    Byte *			destBuf);
     // dequeue from WriteQueue into a single USB message, return
 };
 

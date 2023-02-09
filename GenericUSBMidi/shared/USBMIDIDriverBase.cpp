@@ -1,4 +1,4 @@
-/*	Copyright © 2007 Apple Inc. All Rights Reserved.
+/*	Copyright ï¿½ 2007 Apple Inc. All Rights Reserved.
 	
 	Disclaimer: IMPORTANT:  This Apple software is supplied to you by 
 			Apple Inc. ("Apple") in consideration of your agreement to the
@@ -122,10 +122,9 @@ void	USBMIDIDriverBase::USBMIDIHandleInput(	USBMIDIDevice *	usbmDev,
 		
 		int cable = src[0] >> 4;
 		int msglen;
-		// support single-entity devices that seem to use an arbitrary cable number
-		// (besides which, it's good to have range-checking)
-		if (cable < 0) cable = 0;
-		else if (cable >= usbmDev->mNumEntities) cable = usbmDev->mNumEntities - 1;
+
+        if (cable >= usbmDev->mNumEntities)
+            cable = static_cast<int>(usbmDev->mNumEntities - 1);
 		
 		if (prevCable != -1 && cable != prevCable) {
 			MIDIReceived(usbmDev->mSources[prevCable], pktlist);
@@ -257,7 +256,7 @@ AddSysEx:
 // at least one element.
 // Fill one USB buffer, destBuf, with a size of bufSize, with outgoing data in USB-MIDI format.
 // Return the number of bytes written.
-ByteCount	USBMIDIDriverBase::USBMIDIPrepareOutput(	USBMIDIDevice *	usbmDev, 
+UInt32	USBMIDIDriverBase::USBMIDIPrepareOutput(	USBMIDIDevice *	usbmDev,
 														WriteQueue &	writeQueue, 			
 														Byte *			destBuf, 
 														ByteCount 		bufSize)
@@ -270,7 +269,7 @@ ByteCount	USBMIDIDriverBase::USBMIDIPrepareOutput(	USBMIDIDevice *	usbmDev,
 		Byte *dataStart = wqe->packet.Data();
 		Byte *src = dataStart + wqe->bytesSent;
 		Byte *srcend = dataStart + wqe->packet.Length();
-		int srcLeft;
+		std::ptrdiff_t srcLeft;
 
 #if !CAN_USE_USB_UNPARSED_EVENTS
 		// have to check to see if we have 1 or 2 bytes of dangling unsent sysex (won't contain F7)
@@ -417,6 +416,6 @@ DoneFilling:
 		// source data in the write queue
 		
 	} // while walking writeQueue
-	return dest - destBuf;
+	return static_cast<UInt32>(dest - destBuf);
 }
 

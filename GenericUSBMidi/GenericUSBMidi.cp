@@ -188,10 +188,10 @@ void		GenericUSBMidiDriver::HandleInput(USBMIDIDevice *usbmDev, MIDITimeStamp wh
 	USBMIDIHandleInput(usbmDev, when, readBuf, readBufSize);
 }
 
-ByteCount	GenericUSBMidiDriver::PrepareOutput(USBMIDIDevice *usbmDev, WriteQueue &writeQueue,
+UInt32	GenericUSBMidiDriver::PrepareOutput(USBMIDIDevice *usbmDev, WriteQueue &writeQueue,
                                               Byte *destBuf)
 {
-	int n =
+	auto n =
     USBMIDIPrepareOutput(usbmDev, writeQueue, destBuf, usbmDev->mOutPipe.mMaxPacketSize);
 	if (n < usbmDev->mOutPipe.mMaxPacketSize) {
 		memset(destBuf + n, 0, usbmDev->mOutPipe.mMaxPacketSize - n);

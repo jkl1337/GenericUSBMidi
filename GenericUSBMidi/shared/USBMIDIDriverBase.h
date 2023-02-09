@@ -1,4 +1,4 @@
-/*	Copyright © 2007 Apple Inc. All Rights Reserved.
+/*	Copyright ï¿½ 2007 Apple Inc. All Rights Reserved.
 	
 	Disclaimer: IMPORTANT:  This Apple software is supplied to you by 
 			Apple Inc. ("Apple") in consideration of your agreement to the
@@ -92,7 +92,7 @@ public:
 								// a USB message arrived, parse it into a MIDIPacketList and
 								// call MIDIReceived
 
-	virtual ByteCount		PrepareOutput(			USBMIDIDevice *	usbmDev,
+	virtual UInt32		    PrepareOutput(			USBMIDIDevice *	usbmDev,
 													WriteQueue &	writeQueue,
 													Byte *			destBuf) = 0;
 								// dequeue from WriteQueue into a single USB message, return
@@ -109,7 +109,7 @@ public:
 													Byte *			readBuf,
 													ByteCount		bufSize);
 
-	static ByteCount		USBMIDIPrepareOutput(	USBMIDIDevice *	usbmDev,
+	static UInt32	    	USBMIDIPrepareOutput(	USBMIDIDevice *	usbmDev,
 													WriteQueue &	writeQueue, 
 													Byte *			destBuf,
 													ByteCount 		bufSize);
