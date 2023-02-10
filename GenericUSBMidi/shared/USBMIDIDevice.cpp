@@ -60,7 +60,7 @@ USBMIDIDevice::USBMIDIDevice(		USBMIDIDriverBase *	driver,
 	mDriver(driver),
 	mUSBDevice(usbDevice),
 	mUSBInterface(usbInterface),
-	mUSBIntfIntf(NULL),
+	mUSBIntfIntf(nullptr),
 	mShuttingDown(false),
 	mWriteQueueMutex("USBMIDIDevice.mWriteQueueMutex")
 
@@ -78,7 +78,7 @@ USBMIDIDevice::USBMIDIDevice(		USBMIDIDriverBase *	driver,
 //
 bool	USBMIDIDevice::Initialize()
 {
-	mUSBInterface = mDriver->CreateInterface(this);
+	mUSBInterface = mDriver->CreateInterface(this, 0);
 	if (mUSBInterface == NULL || !mUSBInterface->Open())
 		return false;
 	mUSBIntfIntf = mUSBInterface->GetPluginInterface();

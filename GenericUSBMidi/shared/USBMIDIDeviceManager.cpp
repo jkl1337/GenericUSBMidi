@@ -193,7 +193,7 @@ OSStatus	USBMIDIDeviceManager::UseDeviceAndInterface(USBDevice *		usbDevice,
 	// Create a USBMIDIDevice (or subclass), starting it for I/O
 	{
 		USBMIDIDevice *ioDev = mDriver->CreateUSBMIDIDevice(usbDevice, usbInterface, midiDevice);
-		if (ioDev == NULL) goto errexit;
+		if (!ioDev) goto errexit;
 		if (!ioDev->Initialize())
 			delete ioDev;
 		else {

@@ -169,7 +169,7 @@ MIDIDeviceRef	GenericUSBMidiDriver::CreateDevice(USBDevice *		inUSBDevice,
 	return dev;
 }
 
-USBInterface *	GenericUSBMidiDriver::CreateInterface(USBMIDIDevice *device)
+USBInterface *	GenericUSBMidiDriver::CreateInterface(USBMIDIDevice *device, int portOffset)
 {
     auto devEntry = FindDeviceEntry(device->GetUSBDevice()->GetDeviceDescriptor());
     return devEntry ? device->mUSBDevice->FindInterface(devEntry->interface, 0) : nullptr;

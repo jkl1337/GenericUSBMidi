@@ -1,4 +1,4 @@
-/*	Copyright © 2007 Apple Inc. All Rights Reserved.
+/*	Copyright ï¿½ 2007 Apple Inc. All Rights Reserved.
 	
 	Disclaimer: IMPORTANT:  This Apple software is supplied to you by 
 			Apple Inc. ("Apple") in consideration of your agreement to the
@@ -52,6 +52,46 @@ class USBMIDIDriverBase;
 #if COALESCE_WRITES
 #include <CoreMIDIServer/MIDITimerTask.h>
 #endif
+
+class USBMIDIDevice;
+
+class USBMIDISubDevice {
+
+public:
+    USBMIDISubDevice(USBMIDIDevice *parent);
+    virtual ~USBMIDISubDevice();
+    
+    bool Initialize();
+    void FindPipes();
+    
+    void DoRead(IOBuffer &readBuf);
+    static void ReadCallback(void *refcon, IOReturn result, void *arg0);
+    void DoWrite();
+    static void WriteCallback(void *refcon, IOReturn result, void *arg0);
+    
+    void HandleInput(IOBuffer &readBuf, ByteCount bytesReceived);
+    void Send(const MIDIPacketList *pktlist, int portNumber);
+    
+    bool            HaveInPipe() const { return mInPipe.mPipeIndex != UInt8(kUSBNoPipeIdx); }
+    bool            HaveOutPipe() const { return mOutPipe.mPipeIndex != UInt8(kUSBNoPipeIdx); }
+    bool            WritePending() const { return mWriteBuf[0].IOPending(); }
+    
+    USBMIDIDevice *mParent;
+    int mPortOffset = 0;
+    USBMIDIDriverBase *            mDriver;
+    USBDevice *                    mUSBDevice;
+    USBInterface *                mUSBInterface;
+    IOUSBInterfaceInterface **    mUSBIntfIntf;
+    USBPipe                        mInPipe, mOutPipe;        // may be kUSBNoPipeIdx
+    bool                        mShuttingDown;
+    
+    enum { kNumReadBufs = 2, kNumWriteBufs = 1 };
+    
+    IOBuffer                    mReadBuf[kNumReadBufs], mWriteBuf[kNumWriteBufs];
+    int                            mCurWriteBuf;
+    CAMutex                        mWriteQueueMutex;
+    WriteQueue                    mWriteQueue;
+};
 
 // _________________________________________________________________________________________
 //	USBMIDIDevice

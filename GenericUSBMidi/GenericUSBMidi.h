@@ -54,7 +54,7 @@ public:
 	virtual MIDIDeviceRef	CreateDevice(		USBDevice *		inUSBDevice,
                                          USBInterface *	inUSBInterface);
     
-	virtual USBInterface *	CreateInterface(	USBMIDIDevice *	usbmDev);
+	virtual USBInterface *	CreateInterface(	USBMIDIDevice *	usbmDev, int portOffset);
     
 	virtual void		StartInterface(			USBMIDIDevice *	usbmDev);
     // pipes are opened, do any extra initialization (send config msgs etc)
