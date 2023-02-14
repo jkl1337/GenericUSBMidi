@@ -61,7 +61,7 @@ const DeviceEntry deviceTable[] = {
     // vendor ID, product ID, interface number, number of ports/jacks, vendor name, product name
     { 0x0582, 0x0008, 2, 1, kVendorRoland, "PC-300"},
     { 0x0582, 0x000C, 2, 3, kVendorRoland, "SC-D70" },
-    { 0x0582, 0x0016, 2, 4, kVendorEdirol, "SD-90" },
+//    { 0x0582, 0x0016, 2, 4, kVendorEdirol, "SD-90" },
     { 0x0582, 0x0003, 2, 6, kVendorRoland, "SC-8850" },
     // TODO: The SC-8820 does not have consecutive ports (Aux is port 4)
     { 0x0582, 0x0007, 2, 2, kVendorRoland, "SC-8820" },
